@@ -144,7 +144,6 @@ int main(int argc, char* argv[])
 	{
 		pest_scenario.process_ctl_file(file_manager.open_ifile_ext("pst"), file_manager.build_filename("pst"),fout_rec);
 		file_manager.close_file("pst");
-		//pest_scenario.check_inputs(fout_rec);
 	}
 	catch(PestError e)
 	{
@@ -156,18 +155,17 @@ int main(int argc, char* argv[])
 		//throw(e);
 		return 1;
 	}
-	pest_scenario.check_inputs(fout_rec);
-	//OutputFileWriter(FileManager &_file_manager, Pest &_pest_scenario, bool restart_flag = false, bool _save_rei = true, int _eigenwrite = 0);
-	
+	pest_scenario.check_io(fout_rec);
+	pest_scenario.check_inputs(fout_rec,false,true);
+
 	OutputFileWriter ofw(file_manager,pest_scenario,false,false,0);
-	//ofw.scenario_report(fout_rec, false);
+	ofw.scenario_report(fout_rec, false);
 
 	if (pest_scenario.get_pestpp_options().get_debug_parse_only())
 	{
 		cout << endl << endl << "DEBUG_PARSE_ONLY is true, exiting..." << endl << endl;
 		exit(0);
 	}
-
 
 	RunManagerAbstract *run_manager_ptr;
 	if (cmdline.runmanagertype == CmdLine::RunManagerType::PANTHER_MASTER)
@@ -216,16 +214,6 @@ int main(int argc, char* argv[])
 	{
 		gsa_restart = GSA_RESTART::NONE;
 	}
-	//OutputFileWriter(FileManager &_file_manager, Pest &_pest_scenario, bool restart_flag = false, bool _save_rei = true, int _eigenwrite = 0);
-	OutputFileWriter output_writer(file_manager, pest_scenario, false, false);
-	ofstream &frec = file_manager.rec_ofstream();
-	output_writer.scenario_report(frec);
-	//output_writer.scenario_io_report(frec);
-	//output_writer.scenario_par_report(frec);
-	//output_writer.scenario_obs_report(frec);
-
-	pest_scenario.check_inputs(frec);
-	pest_scenario.check_io(frec);
 
 	//map<string, string> gsa_opt_map;
 	//process .gsa file
@@ -302,11 +290,11 @@ int main(int argc, char* argv[])
 		gsa_method = m_ptr;
 		m_ptr->process_pooled_var_file();
 		
-		frec << endl << endl << endl << "Method of Morris settings:" << endl;
+		fout_rec << endl << endl << endl << "Method of Morris settings:" << endl;
 
-		frec << scientific << left << setw(30) << " morris_r " << morris_r << endl;
-		frec << scientific << left << setw(30) << " morris_p " << morris_p << endl;
-		frec << scientific << left << setw(30) << " morris_delta " << morris_delta << endl << endl;
+		fout_rec << scientific << left << setw(30) << " morris_r " << morris_r << endl;
+		fout_rec << scientific << left << setw(30) << " morris_p " << morris_p << endl;
+		fout_rec << scientific << left << setw(30) << " morris_delta " << morris_delta << endl << endl;
 		
 
 	}
@@ -339,10 +327,10 @@ int main(int argc, char* argv[])
 		gsa_method = new Sobol(pest_scenario, file_manager, &obj_func,
 			base_partran_seq, n_sample, par_dist, 1.0);
 
-		frec << endl << endl << endl << "Method of Sobol settings:" << endl;
+		fout_rec << endl << endl << endl << "Method of Sobol settings:" << endl;
 
-		frec << scientific << left << setw(30) << " n_sample " << n_sample << endl;
-		frec << scientific << left << setw(30) << " sobol par dist " <<par_dist_str << endl;
+		fout_rec << scientific << left << setw(30) << " n_sample " << n_sample << endl;
+		fout_rec << scientific << left << setw(30) << " sobol par dist " <<par_dist_str << endl;
 		
 	}
 	else
@@ -357,7 +345,7 @@ int main(int argc, char* argv[])
 		gsa_method->set_seed(seed);
 	}
 	//gsa_method->set_seed(2);
-	frec << scientific << left << setw(30) << " gsa random seed " << gsa_method->get_seed() << endl;
+	fout_rec << scientific << left << setw(30) << " gsa random seed " << gsa_method->get_seed() << endl;
 	// make model runs
 	if (gsa_restart == GSA_RESTART::NONE)
 	{

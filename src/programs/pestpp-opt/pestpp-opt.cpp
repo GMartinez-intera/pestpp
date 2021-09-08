@@ -175,7 +175,7 @@ int main(int argc, char* argv[])
 			throw(e);
 		}
 #endif
-		pest_scenario.check_inputs(fout_rec);
+		pest_scenario.check_inputs(fout_rec,false,true);
 		if (pest_scenario.get_pestpp_options().get_debug_parse_only())
 		{
 			cout << endl << endl << "DEBUG_PARSE_ONLY is true, exiting..." << endl << endl;

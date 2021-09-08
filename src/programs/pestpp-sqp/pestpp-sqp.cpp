@@ -180,7 +180,7 @@ int main(int argc, char* argv[])
 			throw(e);
 		}
 		//pest_scenario.clear_ext_files();
-		pest_scenario.check_inputs(fout_rec);
+		pest_scenario.check_inputs(fout_rec,false,true);
 
 		//Initialize OutputFileWriter to handle IO of suplementary files (.par, .par, .svd)
 		//bool save_eign = pest_scenario.get_svd_info().eigwrite > 0;

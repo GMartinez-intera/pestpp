@@ -182,9 +182,10 @@ int main(int argc, char* argv[])
 			throw(e);
 		}*/
 		//pest_scenario.clear_ext_files();
-		pest_scenario.check_inputs(fout_rec);
+        pest_scenario.check_inputs(fout_rec,false,!pest_scenario.get_pestpp_options().get_ies_enforce_chglim());
 
-		//Initialize OutputFileWriter to handle IO of suplementary files (.par, .par, .svd)
+
+        //Initialize OutputFileWriter to handle IO of suplementary files (.par, .par, .svd)
 		//bool save_eign = pest_scenario.get_svd_info().eigwrite > 0;
 		pest_scenario.get_pestpp_options_ptr()->set_iter_summary_flag(false);
 		OutputFileWriter output_file_writer(file_manager, pest_scenario, restart_flag);

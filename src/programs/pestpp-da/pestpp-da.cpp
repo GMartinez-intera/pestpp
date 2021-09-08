@@ -206,7 +206,8 @@ int main(int argc, char* argv[])
 			fout_rec.close();
 			throw(e);
 		}
-		pest_scenario.check_inputs(fout_rec);
+
+		pest_scenario.check_inputs(fout_rec,false,!pest_scenario.get_pestpp_options().get_ies_enforce_chglim());
 
 
 		//Initialize OutputFileWriter to handle IO of suplementary files (.par, .par, .svd)

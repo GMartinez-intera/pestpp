@@ -3131,8 +3131,9 @@ ParameterEnsemble MOEA::generate_simplex_population(int num_members, ParameterEn
     int i = 0;
     while (i < num_members)
     {
+        //nedler meade
 
-        selected = selection(4, _dp, mattype);
+        //selected = selection(4, _dp, mattype);
 
 
         //differential vector
