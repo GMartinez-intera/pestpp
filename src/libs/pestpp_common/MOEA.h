@@ -207,6 +207,7 @@ private:
 	ParameterEnsemble generate_sbx_population(int num_members, ParameterEnsemble& _dp);
 	ParameterEnsemble generate_pm_population(int num_members, ParameterEnsemble& _dp);
 	ParameterEnsemble generate_pso_population(int num_members, ParameterEnsemble& _dp);
+	ParameterEnsemble simplex_cceua_k(ParameterEnsemble s, int k, ParameterEnsemble sf, Eigen::VectorXd bl, Eigen::VectorXd bu, int icall);
     ParameterEnsemble generate_simplex_population(int num_members, ParameterEnsemble& _dp);
 
 	ParameterEnsemble get_updated_pso_velocty(ParameterEnsemble& _dp, vector<string>& gbest_solutions);

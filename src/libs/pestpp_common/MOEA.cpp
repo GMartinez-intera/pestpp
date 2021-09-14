@@ -3098,6 +3098,111 @@ ParameterEnsemble MOEA::generate_pso_population(int num_members, ParameterEnsemb
 	return new_dp;
 }
 
+ParameterEnsemble MOEA::simplex_cceua_k(ParameterEnsemble s, int k, ParameterEnsemble sf, Eigen::VectorXd bl, Eigen::VectorXd bu, int icall)
+{
+	//C++ implementation of the cceua algorithm, Duan et al. (1992) with the addition of k worst points
+	//(nps, nopt) = s.shape
+
+	int nopt = 30; //number of parameters in the mode, TODO get it from s.
+	int nps = nopt + 1; // number of members in a simplex
+	int n = nps;
+	int m = nopt;
+	double alpha = 1.0; //cceua parameters
+	double beta = 0.5;  //cceua parameters
+
+
+	//TODO place holders to get values from parameters and objective function
+	Eigen::MatrixXd svals(nopt, nps); //PARAMETERS
+	Eigen::VectorXd sfvals(nopt);     //OBJECTIVE FUNCTION
+	
+	//TOERASE, FILL WTH RANDOM NUMBERS FOR NOW
+	for (int i = 0; i < nopt; i++)
+	{
+		for (int j = 0; j < nps; j++)
+			svals(i, j) = uniform_draws(1, 0.0, 1.0, rand_gen)[0];
+		sfvals(i) = uniform_draws(1, 0.0, 1.0, rand_gen)[0];
+	}
+		
+	
+	Eigen::VectorXd sb(nps);
+	double fb;
+
+	sb = svals.row(0);
+	fb = sfvals(0);
+
+	//initialize structures for kth worst values
+	Eigen::MatrixXd skw(k, nps);
+	Eigen::VectorXd sfkw(k);
+
+	//Assign the best and k worst points
+	for (int ik = 0; ik < k; ik++)
+	{
+		skw.row(ik) = svals.row(svals.rows() - ik);
+		sfkw(ik) = sfvals(svals.rows() - ik);
+	}
+
+	//loop cceua
+	Eigen::MatrixXd snewk(k, nps);
+	for (int ik = 0; ik < k; ik++)
+	{
+		// Compute the centroid of the simplex excluding the worst point :
+		Eigen::MatrixXd svalsek(nopt - 1,nps);
+		int j = 0;
+		for (int ikk = 0; ikk < nopt; ikk++)
+		{
+			if (ikk != ik)
+			{
+				svalsek.row(j) = svals.row(ikk);
+				j++;
+			}
+
+		}
+		Eigen::VectorXd ce = svalsek.colwise().mean();
+				 
+		//Attempt a reflection point
+		snewk.row(ik) = ce.array() + alpha * (ce.array() - skw.row(ik).array());
+
+		//Check if is outside the bounds :
+		int ibound = 0;
+
+		Eigen::VectorXd sl = snewk.row(ik).array() - bl.array();
+
+		if (bool bidx = (sl.array() < 0.0).any())
+			ibound = 1;
+
+		sl = bu.array() - snewk.row(ik).array();
+		if (bool bidx = (sl.array() < 0.0).any())
+			ibound = 2;
+
+		if (ibound >= 1)
+			snewk.row(ik) = bl.array() + uniform_draws(1, 0.0, 1.0, rand_gen)[0] * (bu.array() - bl.array()); //TODO CHECK RECEPY
+
+		
+
+		//fnew = functn.functn(nopt, snew) 
+		// TODO IF FUNCTN FAILED
+		//icall = icall + 1
+
+		//Reflection failed; now attempt a contraction point :
+		//if fnew > fw:
+			//snew = sw + beta * (ce - sw)
+			//TODO fnew = functn.functn(nopt, snew)
+			//icall = icall + 1
+
+		//Both reflection and contraction have failed, attempt a random point;
+		//if fnew > fw:
+			//snew = bl + np.random.rand(1, nopt)[0] * (bu - bl)
+			// TODO fnew = functn.functn(nopt, snew)
+			//icall = icall + 1
+
+
+		//END OF CCE
+	}
+
+	//TOD0 assign snewk back in s
+
+	return s;//TODO fnew, icall
+} 
 
 ParameterEnsemble MOEA::generate_simplex_population(int num_members, ParameterEnsemble& _dp)
 {
@@ -3105,7 +3210,7 @@ ParameterEnsemble MOEA::generate_simplex_population(int num_members, ParameterEn
     vector<int> r_int_vec;
     for (int i = 0; i < dv_names.size() - n_adaptive_dvs; i++)
         r_int_vec.push_back(i);
-
+	int num_reflect = 2; //TODO READ mou_simplex_num_reflect, k
     Eigen::VectorXd x,y,diff;
     Eigen::MatrixXd new_reals(num_members, _dp.shape().second);
     new_reals.setZero();
@@ -3124,9 +3229,13 @@ ParameterEnsemble MOEA::generate_simplex_population(int num_members, ParameterEn
     vector<int> selected;
     Parameters lbnd = pest_scenario.get_ctl_parameter_info().get_low_bnd(dv_names);
     Parameters ubnd = pest_scenario.get_ctl_parameter_info().get_up_bnd(dv_names);
+	
     ParamTransformSeq bts = pest_scenario.get_base_par_tran_seq();
     bts.ctl2numeric_ip(lbnd);
     bts.ctl2numeric_ip(ubnd);
+
+	//Eigen::VectorXd veclnbd = lbnd.get_data_eigen_vec();
+	//Eigen::VectorXd veclnbd = lbnd.get_data_eigen_vec();
     int tries = 0;
     int i = 0;
     while (i < num_members)
