@@ -3098,23 +3098,19 @@ ParameterEnsemble MOEA::generate_pso_population(int num_members, ParameterEnsemb
 	return new_dp;
 }
 
-ParameterEnsemble MOEA::simplex_cceua_k(ParameterEnsemble s, int k, ParameterEnsemble sf, Eigen::VectorXd bl, Eigen::VectorXd bu, int icall)
+ParameterEnsemble MOEA::simplex_cceua_kn(ParameterEnsemble s, int k, int nsteps, int optbounds)
 {
 	//C++ implementation of the cceua algorithm, Duan et al. (1992) with the addition of k worst points
-	//(nps, nopt) = s.shape
-
-	int nopt = 30; //number of parameters in the mode, TODO get it from s.
+	// 	   and n steps along the reflection path
+	
+	//TODO get npt from s.
+	int nopt = 30; //number of variables in the model, in an ideal situaion s has nopt realizations, handle size of s in generate_simplex_population
 	int nps = nopt + 1; // number of members in a simplex
-	int n = nps;
-	int m = nopt;
-	double alpha = 1.0; //cceua parameters
-	double beta = 0.5;  //cceua parameters
 
-
-	//TODO place holders to get values from parameters and objective function
+	//TODO get parameters and fitness from s
 	Eigen::MatrixXd svals(nopt, nps); //PARAMETERS
 	Eigen::VectorXd sfvals(nopt);     //OBJECTIVE FUNCTION
-	
+
 	//TOERASE, FILL WTH RANDOM NUMBERS FOR NOW
 	for (int i = 0; i < nopt; i++)
 	{
@@ -3122,31 +3118,53 @@ ParameterEnsemble MOEA::simplex_cceua_k(ParameterEnsemble s, int k, ParameterEns
 			svals(i, j) = uniform_draws(1, 0.0, 1.0, rand_gen)[0];
 		sfvals(i) = uniform_draws(1, 0.0, 1.0, rand_gen)[0];
 	}
-		
-	
-	Eigen::VectorXd sb(nps);
-	double fb;
 
-	sb = svals.row(0);
-	fb = sfvals(0);
+	//TODO GET bl bu from s
+	Eigen::VectorXd bl(nopt); 
+	Eigen::VectorXd bu(nopt);
+	for (int i = 0; i < nopt; i++)
+	{
+		bl(i) = 0.0; //zdt1 example
+		bl(i) = 1.0; //zdt1 example
+
+	}
+	//Create vector with n steps from reflection [1-1/n, 1-2/n, ...1-(n-1)/n]
+	//Examples:                             n=1, [1]
+	//                                      n=4, [1, 1-1/n, 1-2/n, 1-3/n]
+	//TODO DECIDE TO INCLUDE one or more contraction points right the way or under some circustance
+	//A contraction point cound use -1+2/n or something similar.
+	Eigen::VectorXi alpha_int_vec(nsteps);
+	for (int ia = 0; ia < nsteps; ia++)
+	{
+		if (ia == 0)
+		{
+			alpha_int_vec(0) = 1;
+		}
+		else
+		{ 
+			alpha_int_vec(ia) = 1 - (ia + 1) / (nsteps);
+		}
+	}
+
+	//TODO consider adding iter 
 
 	//initialize structures for kth worst values
 	Eigen::MatrixXd skw(k, nps);
 	Eigen::VectorXd sfkw(k);
 
-	//Assign the best and k worst points
+	//Separate the k worst points
 	for (int ik = 0; ik < k; ik++)
 	{
 		skw.row(ik) = svals.row(svals.rows() - ik);
 		sfkw(ik) = sfvals(svals.rows() - ik);
 	}
 
-	//loop cceua
-	Eigen::MatrixXd snewk(k, nps);
+	//Loop through the k worst points and n steps reflections
+	Eigen::MatrixXd snewkn(k * alpha_int_vec.size(), nps);
 	for (int ik = 0; ik < k; ik++)
 	{
-		// Compute the centroid of the simplex excluding the worst point :
-		Eigen::MatrixXd svalsek(nopt - 1,nps);
+		// Compute the centroid of the simplex excluding the seleted kth worst point
+		Eigen::MatrixXd svalsek(nopt - 1, nps);
 		int j = 0;
 		for (int ikk = 0; ikk < nopt; ikk++)
 		{
@@ -3158,26 +3176,50 @@ ParameterEnsemble MOEA::simplex_cceua_k(ParameterEnsemble s, int k, ParameterEns
 
 		}
 		Eigen::VectorXd ce = svalsek.colwise().mean();
-				 
-		//Attempt a reflection point
-		snewk.row(ik) = ce.array() + alpha * (ce.array() - skw.row(ik).array());
 
-		//Check if is outside the bounds :
-		int ibound = 0;
-
-		Eigen::VectorXd sl = snewk.row(ik).array() - bl.array();
-
-		if (bool bidx = (sl.array() < 0.0).any())
-			ibound = 1;
-
-		sl = bu.array() - snewk.row(ik).array();
-		if (bool bidx = (sl.array() < 0.0).any())
-			ibound = 2;
-
-		if (ibound >= 1)
-			snewk.row(ik) = bl.array() + uniform_draws(1, 0.0, 1.0, rand_gen)[0] * (bu.array() - bl.array()); //TODO CHECK RECEPY
-
+		//Query reflection/contration points stored in vector of reflection/contraction  points
+		for (int ia = 0; ia < alpha_int_vec.size(); ia++)
+		{
 		
+			snewkn.row(ik) = ce.array() + alpha_int_vec(ia) * (ce.array() - skw.row(ik).array());
+
+			//Check if is outside the bounds :
+			int ibound = 0;
+
+			Eigen::VectorXd sl = snewkn.row(ik).array() - bl.array();
+
+			if (bool bidx = (sl.array() < 0.0).any())
+				ibound = 1;
+
+			sl = bu.array() - snewkn.row(ik).array();
+			if (bool bidx = (sl.array() < 0.0).any())
+				ibound = 2;
+
+			if (ibound >= 1)
+				//TODO BRING TO THE BOUND INSTEAD OF RANDOM.
+				switch (optbounds){
+					case 1:
+						//RANDOM, ORIGINAL SCE
+						snewkn.row(ik) = bl.array() + uniform_draws(1, 0.0, 1.0, rand_gen)[0] * (bu.array() - bl.array()); //TODO CHECK RECEPIE
+						break;
+					case 2:
+						//INFORCE BOUNDS CODE
+						for (int j = 0; j < snewkn.row(ik).size();j++ )
+						{
+							if (snewkn(ik,j) > bu(j))
+								snewkn(ik,j) = bu(j);
+							if (snewkn(ik,j) < bl(j))
+								snewkn(ik,j) = bl(j);
+						}						
+						break;
+					case 3:
+						//RANDOM, ONLY FOR THE PARAMETER BEYOND THE BOUND
+						break;
+				}
+
+
+			//RETURN PARAMETER FIT
+		}
 
 		//fnew = functn.functn(nopt, snew) 
 		// TODO IF FUNCTN FAILED
@@ -3234,10 +3276,14 @@ ParameterEnsemble MOEA::generate_simplex_population(int num_members, ParameterEn
     bts.ctl2numeric_ip(lbnd);
     bts.ctl2numeric_ip(ubnd);
 
-	//Eigen::VectorXd veclnbd = lbnd.get_data_eigen_vec();
-	//Eigen::VectorXd veclnbd = lbnd.get_data_eigen_vec();
     int tries = 0;
     int i = 0;
+	int mou_simplex_num_reflect = 5; //TODO INPUT FILE mou_simplex_num_reflect
+	int mou_simplex_num_steps_reflect = 4; //TODO INPUT FILE mou_simplex_num_steps_reflect
+	int mou_simplex_opt_bounds = 1; //TODO INPUT FILE mou_simplex_opt_bounds
+	simplex_cceua_kn(_dp, mou_simplex_num_reflect, mou_simplex_num_steps_reflect, mou_simplex_opt_bounds);
+	//TODO check size s against a hypotheical complex. complex as a function. of decision.
+	
     while (i < num_members)
     {
         //nedler meade
