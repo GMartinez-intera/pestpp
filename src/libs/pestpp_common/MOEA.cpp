@@ -3108,13 +3108,13 @@ ParameterEnsemble MOEA::simplex_cceua_kn(ParameterEnsemble s, int k, int nsteps,
 	int nps = nopt + 1; // number of members in a simplex
 
 	//TODO get parameters and fitness from s
-	Eigen::MatrixXd svals(nopt, nps); //PARAMETERS
-	Eigen::VectorXd sfvals(nopt);     //OBJECTIVE FUNCTION
+	Eigen::MatrixXd svals(nps, nopt); //PARAMETERS 
+	Eigen::VectorXd sfvals(nps);     //OBJECTIVE FUNCTION for members of the simplex
 
 	//TOERASE, FILL WTH RANDOM NUMBERS FOR NOW
-	for (int i = 0; i < nopt; i++)
+	for (int i = 0; i < nps; i++)
 	{
-		for (int j = 0; j < nps; j++)
+		for (int j = 0; j < nopt; j++)
 			svals(i, j) = uniform_draws(1, 0.0, 1.0, rand_gen)[0];
 		sfvals(i) = uniform_draws(1, 0.0, 1.0, rand_gen)[0];
 	}
@@ -3124,7 +3124,7 @@ ParameterEnsemble MOEA::simplex_cceua_kn(ParameterEnsemble s, int k, int nsteps,
 	Eigen::VectorXd bu(nopt);
 	for (int i = 0; i < nopt; i++)
 	{
-		bl(i) = 0.0; //zdt1 example
+		bu(i) = 0.0; //zdt1 example
 		bl(i) = 1.0; //zdt1 example
 
 	}
@@ -3133,40 +3133,40 @@ ParameterEnsemble MOEA::simplex_cceua_kn(ParameterEnsemble s, int k, int nsteps,
 	//                                      n=4, [1, 1-1/n, 1-2/n, 1-3/n]
 	//TODO DECIDE TO INCLUDE one or more contraction points right the way or under some circustance
 	//A contraction point cound use -1+2/n or something similar.
-	Eigen::VectorXi alpha_int_vec(nsteps);
+	Eigen::VectorXd alpha_d_vec(nsteps);
 	for (int ia = 0; ia < nsteps; ia++)
 	{
 		if (ia == 0)
 		{
-			alpha_int_vec(0) = 1;
+			alpha_d_vec(0) = 1;
 		}
 		else
 		{ 
-			alpha_int_vec(ia) = 1 - (ia + 1) / (nsteps);
+			alpha_d_vec(ia) =  1.0 - ( (double) ia + 1.0) / ((double) nsteps);
 		}
 	}
-
+	std::cout << alpha_d_vec;//DEBUG ME
 	//TODO consider adding iter 
 
 	//initialize structures for kth worst values
-	Eigen::MatrixXd skw(k, nps);
+	Eigen::MatrixXd skw(k, nopt);
 	Eigen::VectorXd sfkw(k);
 
 	//Separate the k worst points
 	for (int ik = 0; ik < k; ik++)
 	{
-		skw.row(ik) = svals.row(svals.rows() - ik);
-		sfkw(ik) = sfvals(svals.rows() - ik);
+		skw.row(ik) = svals.row(svals.rows() - ik -1);
+		sfkw(ik) = sfvals(svals.rows() - ik -1);
 	}
 
 	//Loop through the k worst points and n steps reflections
-	Eigen::MatrixXd snewkn(k * alpha_int_vec.size(), nps);
+	Eigen::MatrixXd snewkn(k * alpha_d_vec.size(), nopt);
 	for (int ik = 0; ik < k; ik++)
 	{
 		// Compute the centroid of the simplex excluding the seleted kth worst point
-		Eigen::MatrixXd svalsek(nopt - 1, nps);
+		Eigen::MatrixXd svalsek(nps - 1, nopt);
 		int j = 0;
-		for (int ikk = 0; ikk < nopt; ikk++)
+		for (int ikk = 0; ikk < nps; ikk++)
 		{
 			if (ikk != ik)
 			{
@@ -3175,23 +3175,27 @@ ParameterEnsemble MOEA::simplex_cceua_kn(ParameterEnsemble s, int k, int nsteps,
 			}
 
 		}
-		Eigen::VectorXd ce = svalsek.colwise().mean();
+		Eigen::VectorXd ce = svalsek.rowwise().mean();
 
 		//Query reflection/contration points stored in vector of reflection/contraction  points
-		for (int ia = 0; ia < alpha_int_vec.size(); ia++)
+		for (int ia = 0; ia < alpha_d_vec.size(); ia++)
 		{
-		
-			snewkn.row(ik) = ce.array() + alpha_int_vec(ia) * (ce.array() - skw.row(ik).array());
+			Eigen::VectorXd valskrow = skw.row(ik);
+			Eigen::VectorXd delta = ce - valskrow;
+			Eigen::VectorXd delta_a = delta * alpha_d_vec(ia);
+			Eigen::VectorXd ce_delta_a = ce + delta;
+			snewkn.row(ik) = ce_delta_a;
+			//snewkn.row(ik) = (ce.array() + ( (ce.array() - skw.row(ik).array()) * alpha_d_vec(ia))).matrix();
 
 			//Check if is outside the bounds :
 			int ibound = 0;
 
-			Eigen::VectorXd sl = snewkn.row(ik).array() - bl.array();
+			Eigen::VectorXd sl = snewkn.row(ik) - bl;
 
 			if (bool bidx = (sl.array() < 0.0).any())
 				ibound = 1;
 
-			sl = bu.array() - snewkn.row(ik).array();
+			sl = bu - snewkn.row(ik);
 			if (bool bidx = (sl.array() < 0.0).any())
 				ibound = 2;
 
@@ -3281,7 +3285,20 @@ ParameterEnsemble MOEA::generate_simplex_population(int num_members, ParameterEn
 	int mou_simplex_num_reflect = 5; //TODO INPUT FILE mou_simplex_num_reflect
 	int mou_simplex_num_steps_reflect = 4; //TODO INPUT FILE mou_simplex_num_steps_reflect
 	int mou_simplex_opt_bounds = 1; //TODO INPUT FILE mou_simplex_opt_bounds
-	simplex_cceua_kn(_dp, mou_simplex_num_reflect, mou_simplex_num_steps_reflect, mou_simplex_opt_bounds);
+
+	//TODO compare size complex against number of parameters and size of the ensamble
+	int nopt = dv_names.size();// TODO check if this is he  number of parameters to optimize
+	int idealcomplex = max(2, nopt);
+	if (1 == 0) //(nensemble > nopt)
+	{
+		//TODO CREATE AS MANY COMPLEXES AS POSSIBLE GIVEN THE SIZE OF THE ENSEMBLE AND THE NUMBER OF PARAMETERS.
+		int ncomplexes = num_members/nopt; //create complexes with available popultation
+	}
+	else
+	{ 
+		//use the entire population
+		simplex_cceua_kn(_dp, mou_simplex_num_reflect, mou_simplex_num_steps_reflect, mou_simplex_opt_bounds);
+	}
 	//TODO check size s against a hypotheical complex. complex as a function. of decision.
 	
     while (i < num_members)
